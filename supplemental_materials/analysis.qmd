@@ -1,0 +1,442 @@
+# Depression Indicators Analysis Code
+
+### Loading Required Packages
+
+```{python}
+import pandas as pd
+import statsmodels.formula.api as smf
+from scipy.stats import ttest_rel
+import matplotlib.pyplot as plt
+import geopandas as gpd
+import us  
+import scikit_posthocs as sp
+```
+
+### Loading Dataset and Converting Columns
+```{python}
+dep_df = pd.read_csv('data/depression_indicators.csv')
+dep_df.columns = dep_df.columns.str.lower().str.replace(' ', '_')
+```
+
+# Table of Group averages
+
+```{python}
+# Filter relevant data for subgroups
+filtered_df = dep_df[
+    (dep_df["indicator"] == "Symptoms of Depressive Disorder") &
+    (dep_df["group"].isin(["By Age", "By Sex", "By Race/Hispanic ethnicity", "By Education"]))  
+]
+
+# Compute averages per subgroup
+subgroup_avg = filtered_df.groupby(["group", "subgroup"])["value"].mean().reset_index()
+subgroup_avg.columns = ["Group", "Subgroup", "Average Depression Rate"]
+
+# Compute national estimate
+national_avg = dep_df[
+    (dep_df["indicator"] == "Symptoms of Depressive Disorder") &
+    (dep_df["group"] == "National Estimate")
+]["value"].mean()
+
+# Add national estimate to the table
+national_row = pd.DataFrame([["National Estimate", "United States", national_avg]], columns=["Group", "Subgroup", "Average Depression Rate"])
+full_avg_table = pd.concat([subgroup_avg, national_row], ignore_index=True)
+
+# Round values for better readability
+full_avg_table["Average Depression Rate"] = full_avg_table["Average Depression Rate"].round(1)
+
+# Save as CSV
+full_avg_table.to_csv("data/average_depression.csv", index=False)
+
+```
+
+# Visualizations
+
+# Visualizations
+
+### By age groups
+
+```{python}
+# Convert to datetime
+dep_df["time_period_start_date"] = pd.to_datetime(dep_df["time_period_start_date"])  
+
+# Create age_df and national_df 
+age_df = dep_df[
+    (dep_df["indicator"] == "Symptoms of Depressive Disorder") &
+    (dep_df["group"] == "By Age")
+][["subgroup", "time_period_start_date", "value"]].copy()
+
+national_df = dep_df[
+    (dep_df["group"] == "National Estimate") &
+    (dep_df["subgroup"] == "United States")
+][["time_period_start_date", "value"]].copy()
+national_df = national_df.rename(columns={"value": "National Estimate"})
+
+# Plot 
+plt.figure(figsize=(12, 6))
+
+for subgroup in age_df["subgroup"].unique():
+    data = age_df[age_df["subgroup"] == subgroup]
+    plt.plot(data["time_period_start_date"], data["value"], label=subgroup, linewidth=1.5)
+
+plt.plot(national_df["time_period_start_date"], national_df["National Estimate"], 
+         color="black", linewidth=2.5, linestyle="--", label="National Estimate")
+
+plt.title("Depression Rates Over Time by Age Group", fontsize=20)
+plt.xlabel("Date", fontsize=15)
+plt.ylabel("Reported Depression Symptom Rate (%)", fontsize=15)
+plt.xticks(fontsize=10)
+plt.legend(loc='upper right', bbox_to_anchor=(1, 1))
+plt.tight_layout()
+plt.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+plt.show()
+```
+
+### By sex
+```{python}
+# Prepare sex df
+sex_df = dep_df[
+    (dep_df["indicator"] == "Symptoms of Depressive Disorder") &
+    (dep_df["group"] == "By Sex")
+][["subgroup", "time_period_start_date", "value"]].copy()
+
+
+# Plot
+plt.figure(figsize=(12, 6))
+
+for subgroup in sex_df["subgroup"].unique():
+    data = sex_df[sex_df["subgroup"] == subgroup]
+    plt.plot(data["time_period_start_date"], data["value"], label=subgroup, linewidth=1.5)
+
+plt.plot(national_df["time_period_start_date"], 
+    national_df["National Estimate"],
+    color="black", linewidth=2.5, linestyle="--", label="National Estimate")
+
+plt.title("Depression Rates Over Time by Sex", fontsize=20)
+plt.xlabel("Date", fontsize=15)
+plt.ylabel("Reported Depression Symptom Rate (%)", fontsize=15)
+plt.xticks(fontsize=10)
+plt.legend(loc='upper right', bbox_to_anchor=(1, 1))
+plt.tight_layout()
+plt.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+plt.show()
+```
+
+### By education
+```{python}
+# Prepare education df
+edu_df = dep_df[
+    (dep_df["indicator"] == "Symptoms of Depressive Disorder") &
+    (dep_df["group"] == "By Education")
+][["subgroup", "time_period_start_date", "value"]].copy()
+
+# Plot
+plt.figure(figsize=(12, 6))
+
+for subgroup in edu_df["subgroup"].unique():
+    data = edu_df[edu_df["subgroup"] == subgroup]
+    plt.plot(data["time_period_start_date"], data["value"], label=subgroup, linewidth=1.5)
+
+plt.plot(national_df["time_period_start_date"], 
+    national_df["National Estimate"],
+    color="black", linewidth=2.5, linestyle="--", label="National Estimate")
+
+plt.title("Depression Rates Over Time by Education Level", fontsize=20)
+plt.xlabel("Date", fontsize=15)
+plt.ylabel("Reported Depression Symptom Rate (%)", fontsize=15)
+plt.xticks(fontsize=10)
+plt.legend(loc='upper right', bbox_to_anchor=(1, 1))
+plt.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+plt.tight_layout()
+plt.show()
+```
+
+### By race/ethnicity
+
+```{python}
+# Prepare Race/Ethnicity df
+race_df = dep_df[
+    (dep_df["indicator"] == "Symptoms of Depressive Disorder") &
+    (dep_df["group"] == "By Race/Hispanic ethnicity")
+][["subgroup", "time_period_start_date", "value"]].copy()
+
+# Plot 
+plt.figure(figsize=(12, 6))
+
+for subgroup in race_df["subgroup"].unique():
+    data = race_df[race_df["subgroup"] == subgroup]
+    plt.plot(data["time_period_start_date"], data["value"], label=subgroup, linewidth=1.5)
+
+plt.plot(national_df["time_period_start_date"], 
+    national_df["National Estimate"],
+    color="black", linewidth=2.5, linestyle="--", label="National Estimate")
+
+plt.title("Depression Rates Over Time by Race/Ethnicity", fontsize=20)
+plt.xlabel("Date", fontsize=15)
+plt.ylabel("Reported Depression Symptom Rate (%)", fontsize=15)
+plt.xticks(fontsize=10)
+plt.legend(loc='upper right', bbox_to_anchor=(1, 1))
+plt.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+plt.tight_layout()
+plt.show()
+```
+
+# Map of the United states
+
+```{python}
+# Filter data for state-level 
+state_df = dep_df[
+    (dep_df["indicator"] == "Symptoms of Depressive Disorder") &
+    (dep_df["group"] == "By State")
+].copy()
+
+# Compute average rate per state
+state_avg = state_df.groupby("subgroup")["value"].mean().reset_index()
+state_avg.columns = ["state", "avg_depression_rate"]
+
+# Read and reproject the US states shapefile
+gdf_states = gpd.read_file("data/us-states.json")
+gdf_states = gdf_states.to_crs("EPSG:5070")
+
+# Merge average depression data with the geographic data
+merged = gdf_states.merge(state_avg, left_on="name", right_on="state", how="left")
+
+# Add state abbreviations
+merged["abbrev"] = merged["state"].apply(
+    lambda x: us.states.lookup(str(x)).abbr if pd.notnull(x) and us.states.lookup(str(x)) else ""
+)
+
+# Filter out Alaska and Hawaii
+merged_contiguous = merged[~merged["name"].isin(["Alaska", "Hawaii", "District of Columbia"])]
+
+# Plot map
+fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+merged_contiguous.plot(
+    column="avg_depression_rate",
+    cmap="Blues",
+    linewidth=0.8,
+    edgecolor='0.8',
+    legend=True,
+    ax=ax
+)
+
+# Custom horizontal offsets for small northeast states
+horizontal_offsets = {
+    "RI": (250000, 0),
+    "CT": (250000, -100000),
+    "NJ": (250000, 0),
+    "MA": (100000, 50000),
+    "DE": (250000, 0),
+    "MD": (250000, -100000),
+    "NH": (250000, 0),
+    "VT": (-250000, 200000),
+    "DC": (250000, 0)
+}
+
+# Draw annotations
+for idx, row in merged_contiguous.iterrows():
+    if row["geometry"].centroid.is_empty:
+        continue
+    x, y = row["geometry"].centroid.coords[0]
+    abbrev = row["abbrev"]
+    rate = row["avg_depression_rate"]
+
+    label = f"{abbrev} {rate:.1f}%"
+
+    if abbrev in horizontal_offsets:
+        dx, dy = horizontal_offsets[abbrev]
+        ax.plot([x, x + dx], [y, y + dy], color='gray', linewidth=0.5)  
+        ax.text(x + dx + 30000, y + dy, label, ha="left", va="center", fontsize=8, fontweight='bold')
+    else:
+        ax.text(x, y, label, ha="center", va="center", fontsize=8, fontweight='bold')
+
+# Final formatting
+plt.title("Average Depression Rates by U.S. State", fontsize=16)
+ax.axis("off")
+plt.tight_layout()
+plt.show()
+
+```
+
+### Comparing two time periods
+```{python}
+# Filter base depression data
+state_df = dep_df[
+    (dep_df["indicator"] == "Symptoms of Depressive Disorder") &
+    (dep_df["group"] == "By State")
+].copy()
+
+state_df["time_period_start_date"] = pd.to_datetime(state_df["time_period_start_date"])
+
+# Define shared color scale from both target dates
+dates_of_interest = ["2020-04-23", "2023-04-26"]
+subset = state_df[state_df["time_period_start_date"].isin(pd.to_datetime(dates_of_interest))]
+vmin = subset["value"].min()
+vmax = subset["value"].max()
+
+# Define plotting function
+def plot_usa_map(date_str, title):
+    date = pd.to_datetime(date_str)
+    df_date = state_df[state_df["time_period_start_date"] == date].copy()
+    df_date = df_date[["subgroup", "value"]].rename(columns={"subgroup": "state", "value": "depression_rate"})
+
+    gdf_states = gpd.read_file("data/us-states.json").to_crs("EPSG:5070")
+    merged = gdf_states.merge(df_date, left_on="name", right_on="state", how="left")
+
+    # Add abbreviations
+    merged["abbrev"] = merged["state"].apply(
+        lambda x: us.states.lookup(str(x)).abbr if pd.notnull(x) and us.states.lookup(str(x)) else ""
+    )
+
+    # Exclude
+    merged_contiguous = merged[~merged["name"].isin(["Alaska", "Hawaii", "District of Columbia"])]
+
+    # Plotting
+    fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+    merged_contiguous.plot(
+        column="depression_rate",
+        cmap="Blues",
+        linewidth=0.8,
+        edgecolor='0.8',
+        legend=True,
+        ax=ax,
+        vmin=vmin,
+        vmax=vmax
+    )
+
+    # Custom horizontal callouts for small northeastern states
+    horizontal_offsets = {
+        "RI": (250000, 0),
+        "CT": (250000, -100000),
+        "NJ": (250000, 0),
+        "MA": (100000, 50000),
+        "DE": (250000, 0),
+        "MD": (250000, -100000),
+        "NH": (250000, 0),
+        "VT": (-250000, 200000),
+        "DC": (250000, 0)
+    }
+
+    # Annotate each state
+    for idx, row in merged_contiguous.iterrows():
+        if row["geometry"].centroid.is_empty:
+            continue
+        x, y = row["geometry"].centroid.coords[0]
+        abbrev = row["abbrev"]
+        rate = row["depression_rate"]
+
+        if pd.isna(rate) or abbrev == "":
+            continue
+
+        label = f"{abbrev} {rate:.1f}%"
+
+        if abbrev in horizontal_offsets:
+            dx, dy = horizontal_offsets[abbrev]
+            ax.plot([x, x + dx], [y, y + dy], color='gray', linewidth=0.5)
+            ax.text(x + dx + 30000, y + dy, label, ha="left", va="center", fontsize=8, fontweight='bold')
+        else:
+            ax.text(x, y, label, ha="center", va="center", fontsize=8, fontweight='bold')
+
+    plt.title(title, fontsize=16)
+    ax.axis("off")
+    plt.tight_layout()
+    plt.show()
+
+# Step 4: Plot both maps
+plot_usa_map("2020-04-23", "Depression Rates by State – April 23, 2020")
+plot_usa_map("2023-04-26", "Depression Rates by State – April 26, 2023")
+```
+
+# Understanding Statistical Significance
+
+### By Sex
+
+Uses a t-test
+```{python}
+from scipy.stats import ttest_ind
+
+# Extract values for each subgroup
+female_values = sex_df[sex_df["subgroup"] == "Female"]["value"]
+male_values = sex_df[sex_df["subgroup"] == "Male"]["value"]
+
+# T-test 
+t_stat, p_value = ttest_ind(female_values, male_values, equal_var=False)
+
+# Results
+print(f"T-statistic: {t_stat:.3f}")
+print(f"P-value: {p_value:.5f}")
+```
+
+### By Age
+```{python}
+# Kruskal-Wallis
+grouped_data = [age_df[age_df['subgroup'] == grp]['value'] for grp in age_df['subgroup'].unique()]
+
+# Kruskal-Wallis test
+stat, p = kruskal(*grouped_data)
+
+# Results
+print(f"Kruskal-Wallis H-statistic: {stat:.3f}")
+print(f"P-value: {p:.5f}")
+```
+
+```{python}
+# Run Dunn's 
+dunn_age = sp.posthoc_dunn(age_df, val_col='value', group_col='subgroup', p_adjust='bonferroni')
+
+print(dunn_age)
+```
+
+### By Education
+
+```{python}
+# Kruskal-Wallis
+grouped_data = [edu_df[edu_df['subgroup'] == grp]['value'] for grp in edu_df['subgroup'].unique()]
+
+# Run Kruskal-Wallis test
+stat, p = kruskal(*grouped_data)
+
+print(f"Kruskal-Wallis H-statistic: {stat:.3f}")
+print(f"P-value: {p:.5f}")
+```
+
+```{python}
+# Run Dunn's test 
+dunn_edu = sp.posthoc_dunn(edu_df, val_col='value', group_col='subgroup', p_adjust='bonferroni')
+
+print(dunn_edu)
+```
+
+# By Race/Ethnicity
+```{python}
+# Kruskal-Wallis
+grouped_data = [race_df[race_df['subgroup'] == grp]['value'] for grp in race_df['subgroup'].unique()]
+
+# Kruskal-Wallis test
+stat, p = kruskal(*grouped_data)
+
+print(f"Kruskal-Wallis H-statistic: {stat:.3f}")
+print(f"P-value: {p:.5f}")
+```
+```{python}
+# Run Dunn's 
+dunn_race = sp.posthoc_dunn(race_df, val_col='value', group_col='subgroup', p_adjust='bonferroni')
+
+print(dunn_race)
+```
+
+# Top States
+
+```{python}
+# Top 5 states with highest depression rates
+top_10_states = state_avg.sort_values(by="avg_depression_rate", ascending=False).head(10)
+
+# Bottom 5 states with lowest depression rates
+bottom_10_states = state_avg.sort_values(by="avg_depression_rate", ascending=True).head(10)
+
+print("Top 5 States with Highest Depression Rates:")
+print(top_10_states)
+
+print("\nBottom 5 States with Lowest Depression Rates:")
+print(bottom_10_states)
+
+```
